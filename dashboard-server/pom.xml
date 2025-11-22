@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+=============================================================================
+pom.xml - Maven项目配置文件
+=============================================================================
+
+【文件作用】
+定义项目的依赖、构建配置和插件。Maven会根据这个文件下载依赖并构建项目。
+
+【设计决策】为什么用Spring Boot？
+1. 开箱即用，配置简单
+2. 内嵌Tomcat，不需要单独部署
+3. 生态完善，文档丰富
+4. 面试加分项，企业广泛使用
+
+【设计决策】为什么用H2数据库？
+1. 内存数据库，无需安装
+2. 启动即用，适合演示
+3. 支持SQL，可以迁移到MySQL
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 项目基本信息 -->
+    <groupId>com.minidog</groupId>
+    <artifactId>dashboard-server</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Mini-Datadog Dashboard Server</name>
+    <description>日志监控仪表盘服务端</description>
+
+    <!-- 继承Spring Boot父POM，获得默认配置 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.18</version>
+        <relativePath/>
+    </parent>
+
+    <!-- 属性配置 -->
+    <properties>
+        <java.version>11</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!-- 依赖配置 -->
+    <dependencies>
+        <!--
+        Spring Boot Web Starter
+        【作用】提供Web开发所需的全部依赖
+        【包含】Spring MVC, 内嵌Tomcat, JSON处理等
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+        Spring Boot Data JPA
+        【作用】简化数据库操作
+        【包含】Hibernate ORM, Spring Data JPA
+        【设计决策】为什么用JPA而不是MyBatis？
+        - JPA更简洁，简单CRUD不需要写SQL
+        - 适合这种小项目，开发速度快
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!--
+        H2 Database
+        【作用】内存数据库，无需安装
+        【设计决策】为什么用H2？
+        - 启动即用，适合演示和测试
+        - 面试时一键运行，不需要装MySQL
+        - 生产环境可以轻松切换到MySQL
+        -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+        Lombok
+        【作用】减少样板代码（getter/setter等）
+        【注意】需要IDE安装Lombok插件
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- 构建配置 -->
+    <build>
+        <plugins>
+            <!-- Spring Boot Maven插件，用于打包可执行jar -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
