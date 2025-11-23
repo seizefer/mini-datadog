@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -281,5 +282,242 @@ public class LogService {
         logRepository.deleteByTimestampBefore(cutoff);
 
         log.info("日志清理完成");
+    }
+
+    // =============================================================================
+    // 新增功能：搜索、趋势、健康度评分、导出
+    // =============================================================================
+
+    /**
+     * 【函数说明】搜索日志
+     *
+     * 【输入】
+     * - keyword: 搜索关键词（可为空）
+     * - level: 日志级别（可为空）
+     * - service: 服务名（可为空）
+     * - minutes: 时间范围（分钟）
+     *
+     * 【输出】List<LogEntry> - 符合条件的日志列表
+     *
+     * 【设计决策】支持多条件组合搜索
+     * - 关键词搜索消息内容
+     * - 级别过滤
+     * - 服务过滤
+     * - 时间范围限制
+     */
+    public List<LogEntry> searchLogs(String keyword, String level, String service, int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        // 处理空字符串为null，让Repository的动态查询生效
+        keyword = (keyword != null && keyword.trim().isEmpty()) ? null : keyword;
+        level = (level != null && level.trim().isEmpty()) ? null : level;
+        service = (service != null && service.trim().isEmpty()) ? null : service;
+
+        return logRepository.searchLogs(keyword, level, service, start, end);
+    }
+
+    /**
+     * 【函数说明】获取所有服务列表
+     *
+     * 【输出】List<String> - 服务名列表
+     *
+     * 【使用场景】
+     * - 前端下拉框选项
+     */
+    public List<String> getAllServices() {
+        return logRepository.findAllServices();
+    }
+
+    /**
+     * 【函数说明】获取历史趋势数据
+     *
+     * 【输入】hours: 最近N小时
+     *
+     * 【输出】Map<String, Object> - 趋势数据
+     *        - labels: 时间标签数组
+     *        - error: 错误数数组
+     *        - warn: 警告数数组
+     *        - info: 信息数数组
+     *
+     * 【设计决策】按小时聚合
+     * - 粒度适中
+     * - 便于绘制折线图
+     *
+     * 【面试要点】
+     * 这个数据结构是专门为Chart.js设计的
+     */
+    public Map<String, Object> getTrendData(int hours) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusHours(hours);
+
+        List<Object[]> data = logRepository.countByHourAndLevel(start, end);
+
+        // 构建小时到数据的映射
+        Map<Integer, Map<String, Long>> hourData = new HashMap<>();
+
+        for (Object[] row : data) {
+            Integer hour = ((Number) row[0]).intValue();
+            String level = (String) row[1];
+            Long count = (Long) row[2];
+
+            hourData.computeIfAbsent(hour, k -> new HashMap<>()).put(level, count);
+        }
+
+        // 构建结果数组
+        List<String> labels = new ArrayList<>();
+        List<Long> errorData = new ArrayList<>();
+        List<Long> warnData = new ArrayList<>();
+        List<Long> infoData = new ArrayList<>();
+
+        // 填充所有小时的数据（0-23）
+        for (int h = 0; h < 24; h++) {
+            labels.add(String.format("%02d:00", h));
+            Map<String, Long> counts = hourData.getOrDefault(h, new HashMap<>());
+            errorData.add(counts.getOrDefault("ERROR", 0L));
+            warnData.add(counts.getOrDefault("WARN", 0L));
+            infoData.add(counts.getOrDefault("INFO", 0L));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("labels", labels);
+        result.put("error", errorData);
+        result.put("warn", warnData);
+        result.put("info", infoData);
+
+        return result;
+    }
+
+    /**
+     * 【函数说明】计算各服务的健康度评分
+     *
+     * 【输入】minutes: 统计时间范围（分钟）
+     *
+     * 【输出】List<Map<String, Object>> - 每个服务的健康度信息
+     *        - service: 服务名
+     *        - score: 健康度评分（0-100）
+     *        - total: 总日志数
+     *        - errorCount: 错误数
+     *        - warnCount: 警告数
+     *        - errorRate: 错误率
+     *
+     * 【评分算法】
+     * score = 100 - (errorRate * 2) - (warnRate * 0.5)
+     * - 错误权重高（*2）
+     * - 警告权重低（*0.5）
+     * - 最低0分，最高100分
+     *
+     * 【面试要点】
+     * 可以讨论不同的评分算法设计
+     */
+    public List<Map<String, Object>> getServiceHealth(int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        List<Object[]> data = logRepository.countByServiceAndLevel(start, end);
+
+        // 按服务聚合数据
+        Map<String, Map<String, Long>> serviceData = new HashMap<>();
+
+        for (Object[] row : data) {
+            String service = (String) row[0];
+            String level = (String) row[1];
+            Long count = (Long) row[2];
+
+            serviceData.computeIfAbsent(service, k -> new HashMap<>()).put(level, count);
+        }
+
+        // 计算每个服务的健康度
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Map.Entry<String, Map<String, Long>> entry : serviceData.entrySet()) {
+            String service = entry.getKey();
+            Map<String, Long> counts = entry.getValue();
+
+            long errorCount = counts.getOrDefault("ERROR", 0L);
+            long warnCount = counts.getOrDefault("WARN", 0L);
+            long infoCount = counts.getOrDefault("INFO", 0L);
+            long total = errorCount + warnCount + infoCount;
+
+            // 计算健康度评分
+            double errorRate = total > 0 ? (errorCount * 100.0 / total) : 0;
+            double warnRate = total > 0 ? (warnCount * 100.0 / total) : 0;
+
+            // 评分公式：100 - 错误惩罚 - 警告惩罚
+            double score = 100 - (errorRate * 2) - (warnRate * 0.5);
+            score = Math.max(0, Math.min(100, score)); // 限制在0-100
+
+            Map<String, Object> serviceHealth = new HashMap<>();
+            serviceHealth.put("service", service);
+            serviceHealth.put("score", Math.round(score * 10) / 10.0);
+            serviceHealth.put("total", total);
+            serviceHealth.put("errorCount", errorCount);
+            serviceHealth.put("warnCount", warnCount);
+            serviceHealth.put("infoCount", infoCount);
+            serviceHealth.put("errorRate", Math.round(errorRate * 100) / 100.0);
+
+            result.add(serviceHealth);
+        }
+
+        // 按分数排序（低分在前，需要关注）
+        result.sort((a, b) -> Double.compare(
+                (Double) a.get("score"),
+                (Double) b.get("score")
+        ));
+
+        return result;
+    }
+
+    /**
+     * 【函数说明】导出日志为CSV格式
+     *
+     * 【输入】minutes: 导出最近N分钟的数据
+     *
+     * 【输出】String - CSV格式的日志数据
+     *
+     * 【设计决策】为什么用CSV？
+     * - 通用格式，Excel可以直接打开
+     * - 文本格式，方便传输
+     * - 结构简单，生成容易
+     */
+    public String exportLogsToCsv(int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        List<LogEntry> logs = logRepository.findAllForExport(start, end);
+
+        StringBuilder csv = new StringBuilder();
+
+        // CSV头
+        csv.append("ID,时间戳,级别,服务,消息\n");
+
+        // CSV内容
+        for (LogEntry log : logs) {
+            csv.append(log.getId()).append(",");
+            csv.append(log.getTimestamp().format(DATE_FORMATTER)).append(",");
+            csv.append(log.getLevel()).append(",");
+            csv.append(log.getService()).append(",");
+            // 消息中的逗号和换行需要处理
+            String message = log.getMessage()
+                    .replace("\"", "\"\"")
+                    .replace("\n", " ");
+            csv.append("\"").append(message).append("\"");
+            csv.append("\n");
+        }
+
+        return csv.toString();
+    }
+
+    /**
+     * 【函数说明】导出日志为JSON格式
+     *
+     * 【输入】minutes: 导出最近N分钟的数据
+     *
+     * 【输出】List<LogEntry> - 日志列表（可直接序列化为JSON）
+     */
+    public List<LogEntry> exportLogsToJson(int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+        return logRepository.findAllForExport(start, end);
     }
 }

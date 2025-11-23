@@ -311,4 +311,144 @@ public class DashboardController {
 
         return ResponseEntity.ok(response);
     }
+
+    // =============================================================================
+    // 新增API：搜索、趋势、健康度、导出
+    // =============================================================================
+
+    /**
+     * 【API】搜索日志
+     *
+     * 【请求】GET /api/logs/search?keyword=支付&level=ERROR&service=PaymentService&minutes=60
+     *
+     * 【响应】日志列表
+     *
+     * 【参数说明】
+     * - keyword: 搜索关键词（可选）
+     * - level: 日志级别（可选）
+     * - service: 服务名（可选）
+     * - minutes: 时间范围（默认60分钟）
+     */
+    @GetMapping("/logs/search")
+    public ResponseEntity<List<LogEntry>> searchLogs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String level,
+            @RequestParam(required = false) String service,
+            @RequestParam(defaultValue = "60") int minutes) {
+
+        List<LogEntry> logs = logService.searchLogs(keyword, level, service, minutes);
+        return ResponseEntity.ok(logs);
+    }
+
+    /**
+     * 【API】获取所有服务列表
+     *
+     * 【请求】GET /api/services
+     *
+     * 【响应】
+     * ["UserService", "PaymentService", ...]
+     *
+     * 【使用场景】
+     * - 前端搜索框的服务下拉选项
+     */
+    @GetMapping("/services")
+    public ResponseEntity<List<String>> getAllServices() {
+        List<String> services = logService.getAllServices();
+        return ResponseEntity.ok(services);
+    }
+
+    /**
+     * 【API】获取历史趋势数据
+     *
+     * 【请求】GET /api/trend?hours=24
+     *
+     * 【响应】
+     * {
+     *   "labels": ["00:00", "01:00", ...],
+     *   "error": [5, 3, 8, ...],
+     *   "warn": [10, 15, 12, ...],
+     *   "info": [100, 120, 95, ...]
+     * }
+     *
+     * 【使用场景】
+     * - 绘制趋势折线图
+     */
+    @GetMapping("/trend")
+    public ResponseEntity<Map<String, Object>> getTrendData(
+            @RequestParam(defaultValue = "24") int hours) {
+
+        Map<String, Object> trend = logService.getTrendData(hours);
+        return ResponseEntity.ok(trend);
+    }
+
+    /**
+     * 【API】获取服务健康度评分
+     *
+     * 【请求】GET /api/health/services?minutes=30
+     *
+     * 【响应】
+     * [
+     *   {
+     *     "service": "PaymentService",
+     *     "score": 75.5,
+     *     "total": 100,
+     *     "errorCount": 10,
+     *     "warnCount": 20,
+     *     "errorRate": 10.0
+     *   },
+     *   ...
+     * ]
+     *
+     * 【使用场景】
+     * - 服务健康度排行榜
+     * - 问题服务定位
+     */
+    @GetMapping("/health/services")
+    public ResponseEntity<List<Map<String, Object>>> getServiceHealth(
+            @RequestParam(defaultValue = "30") int minutes) {
+
+        List<Map<String, Object>> health = logService.getServiceHealth(minutes);
+        return ResponseEntity.ok(health);
+    }
+
+    /**
+     * 【API】导出日志为CSV
+     *
+     * 【请求】GET /api/export/csv?minutes=60
+     *
+     * 【响应】CSV文件下载
+     *
+     * 【使用场景】
+     * - 下载日志进行离线分析
+     * - 报告生成
+     */
+    @GetMapping("/export/csv")
+    public ResponseEntity<String> exportToCsv(
+            @RequestParam(defaultValue = "60") int minutes) {
+
+        String csv = logService.exportLogsToCsv(minutes);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .header("Content-Disposition", "attachment; filename=logs.csv")
+                .body(csv);
+    }
+
+    /**
+     * 【API】导出日志为JSON
+     *
+     * 【请求】GET /api/export/json?minutes=60
+     *
+     * 【响应】JSON文件下载
+     */
+    @GetMapping("/export/json")
+    public ResponseEntity<List<LogEntry>> exportToJson(
+            @RequestParam(defaultValue = "60") int minutes) {
+
+        List<LogEntry> logs = logService.exportLogsToJson(minutes);
+
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=logs.json")
+                .body(logs);
+    }
 }

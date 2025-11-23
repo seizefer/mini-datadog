@@ -6,26 +6,14 @@
     <title>Mini-Datadog 日志监控仪表盘</title>
     <!--
     =============================================================================
-    index.html - 前端仪表盘页面
+    index.html - 前端仪表盘页面 (增强版)
     =============================================================================
 
-    【文件作用】
-    可视化展示日志统计数据，包括：
-    - 错误率仪表盘
-    - 日志级别分布图
-    - 实时日志列表
-    - 告警状态显示
-
-    【设计决策】为什么用纯HTML+JS？
-    1. 无需构建，打开即用
-    2. 学习成本低
-    3. 适合演示项目
-    4. 面试时可以说"前后端分离"
-
-    【技术选型】
-    - Chart.js: 图表库，简单易用
-    - 原生fetch: 调用API，无需jQuery
-    - CSS Grid: 布局，现代浏览器都支持
+    【新增功能】
+    - 日志搜索：关键词 + 级别 + 服务过滤
+    - 历史趋势图：24小时日志趋势
+    - 服务健康度：各服务健康评分
+    - 数据导出：CSV/JSON格式导出
     -->
 
     <!-- Chart.js 图表库 -->
@@ -88,6 +76,45 @@
         }
 
         /* =============================================================================
+           标签页导航
+           ============================================================================= */
+
+        .tab-nav {
+            background: white;
+            padding: 0 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .tab-nav button {
+            padding: 15px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-nav button:hover {
+            color: #667eea;
+        }
+
+        .tab-nav button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* =============================================================================
            主内容区域
            ============================================================================= */
 
@@ -100,27 +127,27 @@
         /* 统计卡片网格 */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
             margin-bottom: 20px;
         }
 
         .stat-card {
             background: white;
             border-radius: 10px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             text-align: center;
         }
 
         .stat-card .label {
-            font-size: 14px;
+            font-size: 12px;
             color: #666;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .stat-card .value {
-            font-size: 36px;
+            font-size: 28px;
             font-weight: bold;
         }
 
@@ -128,6 +155,7 @@
         .stat-card.warn .value { color: #ffa502; }
         .stat-card.info .value { color: #2ed573; }
         .stat-card.rate .value { color: #667eea; }
+        .stat-card.total .value { color: #333; }
 
         /* =============================================================================
            图表区域
@@ -159,6 +187,104 @@
         }
 
         /* =============================================================================
+           搜索区域
+           ============================================================================= */
+
+        .search-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-form input,
+        .search-form select {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .search-form input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-form button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .search-form button:hover {
+            background: #5a6fd6;
+        }
+
+        /* =============================================================================
+           服务健康度
+           ============================================================================= */
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .health-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .health-card .service-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .health-card .score {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .health-card .score.good { color: #2ed573; }
+        .health-card .score.warning { color: #ffa502; }
+        .health-card .score.bad { color: #ff4757; }
+
+        .health-card .details {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* =============================================================================
            日志列表区域
            ============================================================================= */
 
@@ -174,8 +300,16 @@
             margin-bottom: 15px;
         }
 
-        .logs-filter {
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 15px;
+        }
+
+        .logs-filter {
+            display: flex;
+            gap: 10px;
         }
 
         .logs-filter select {
@@ -183,6 +317,22 @@
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 14px;
+        }
+
+        .export-buttons button {
+            padding: 8px 15px;
+            margin-left: 10px;
+            border: 1px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .export-buttons button:hover {
+            background: #667eea;
+            color: white;
         }
 
         .logs-list {
@@ -252,68 +402,137 @@
 <body>
     <!-- 告警横幅 -->
     <div class="alert-banner" id="alertBanner">
-        ⚠️ 错误率告警！当前错误率超过阈值
+        警告：错误率告警！
     </div>
 
     <!-- 头部 -->
     <header class="header">
-        <h1>🐕 Mini-Datadog</h1>
+        <h1>Mini-Datadog</h1>
         <p>实时日志监控仪表盘</p>
     </header>
 
-    <div class="container">
-        <!-- 统计卡片 -->
-        <div class="stats-grid">
-            <div class="stat-card rate">
-                <div class="label">错误率 (最近5分钟)</div>
-                <div class="value" id="errorRate">0%</div>
-            </div>
-            <div class="stat-card error">
-                <div class="label">ERROR</div>
-                <div class="value" id="errorCount">0</div>
-            </div>
-            <div class="stat-card warn">
-                <div class="label">WARN</div>
-                <div class="value" id="warnCount">0</div>
-            </div>
-            <div class="stat-card info">
-                <div class="label">INFO</div>
-                <div class="value" id="infoCount">0</div>
-            </div>
-        </div>
+    <!-- 标签页导航 -->
+    <nav class="tab-nav">
+        <button class="active" onclick="switchTab('dashboard')">概览</button>
+        <button onclick="switchTab('search')">日志搜索</button>
+        <button onclick="switchTab('health')">服务健康</button>
+        <button onclick="switchTab('trend')">历史趋势</button>
+    </nav>
 
-        <!-- 图表区域 -->
-        <div class="charts-grid">
-            <!-- 日志级别分布饼图 -->
-            <div class="chart-card">
-                <h3>📊 日志级别分布</h3>
-                <div class="chart-container">
-                    <canvas id="levelChart"></canvas>
+    <!-- 概览标签页 -->
+    <div id="tab-dashboard" class="tab-content active">
+        <div class="container">
+            <!-- 统计卡片 -->
+            <div class="stats-grid">
+                <div class="stat-card rate">
+                    <div class="label">错误率 (5分钟)</div>
+                    <div class="value" id="errorRate">0%</div>
+                </div>
+                <div class="stat-card total">
+                    <div class="label">总日志数</div>
+                    <div class="value" id="totalCount">0</div>
+                </div>
+                <div class="stat-card error">
+                    <div class="label">ERROR</div>
+                    <div class="value" id="errorCount">0</div>
+                </div>
+                <div class="stat-card warn">
+                    <div class="label">WARN</div>
+                    <div class="value" id="warnCount">0</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="label">INFO</div>
+                    <div class="value" id="infoCount">0</div>
                 </div>
             </div>
 
-            <!-- 各服务错误数柱状图 -->
-            <div class="chart-card">
-                <h3>📈 各服务错误统计</h3>
-                <div class="chart-container">
-                    <canvas id="serviceChart"></canvas>
+            <!-- 图表区域 -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>日志级别分布</h3>
+                    <div class="chart-container">
+                        <canvas id="levelChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>各服务错误统计</h3>
+                    <div class="chart-container">
+                        <canvas id="serviceChart"></canvas>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 日志列表 -->
-        <div class="logs-section">
-            <h3>📝 最近日志</h3>
-            <div class="logs-filter">
-                <select id="levelFilter" onchange="filterLogs()">
-                    <option value="">全部级别</option>
-                    <option value="ERROR">ERROR</option>
-                    <option value="WARN">WARN</option>
-                    <option value="INFO">INFO</option>
-                </select>
+            <!-- 日志列表 -->
+            <div class="logs-section">
+                <div class="logs-header">
+                    <h3>最近日志</h3>
+                    <div class="logs-filter">
+                        <select id="levelFilter" onchange="filterLogs()">
+                            <option value="">全部级别</option>
+                            <option value="ERROR">ERROR</option>
+                            <option value="WARN">WARN</option>
+                            <option value="INFO">INFO</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="logs-list" id="logsList"></div>
             </div>
-            <div class="logs-list" id="logsList">
-                <!-- 日志条目将通过JS动态填充 -->
+        </div>
+    </div>
+
+    <!-- 搜索标签页 -->
+    <div id="tab-search" class="tab-content">
+        <div class="container">
+            <div class="search-section">
+                <div class="search-form">
+                    <input type="text" id="searchKeyword" placeholder="搜索关键词...">
+                    <select id="searchLevel">
+                        <option value="">全部级别</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="WARN">WARN</option>
+                        <option value="INFO">INFO</option>
+                    </select>
+                    <select id="searchService">
+                        <option value="">全部服务</option>
+                    </select>
+                    <select id="searchMinutes">
+                        <option value="30">最近30分钟</option>
+                        <option value="60" selected>最近1小时</option>
+                        <option value="180">最近3小时</option>
+                        <option value="1440">最近24小时</option>
+                    </select>
+                    <button onclick="performSearch()">搜索</button>
+                </div>
+            </div>
+
+            <div class="logs-section">
+                <div class="logs-header">
+                    <h3>搜索结果 <span id="searchResultCount"></span></h3>
+                    <div class="export-buttons">
+                        <button onclick="exportCSV()">导出CSV</button>
+                        <button onclick="exportJSON()">导出JSON</button>
+                    </div>
+                </div>
+                <div class="logs-list" id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 健康度标签页 -->
+    <div id="tab-health" class="tab-content">
+        <div class="container">
+            <div class="health-grid" id="healthGrid"></div>
+        </div>
+    </div>
+
+    <!-- 趋势标签页 -->
+    <div id="tab-trend" class="tab-content">
+        <div class="container">
+            <div class="chart-card">
+                <h3>24小时日志趋势</h3>
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -325,69 +544,31 @@
     </footer>
 
     <script>
-        /*
-         * =============================================================================
-         * JavaScript - 前端交互逻辑
-         * =============================================================================
-         *
-         * 【主要功能】
-         * 1. 定时调用API获取数据
-         * 2. 更新统计数字
-         * 3. 更新图表
-         * 4. 更新日志列表
-         * 5. 显示告警状态
-         *
-         * 【设计决策】为什么用定时轮询而不是WebSocket？
-         * - 实现简单，适合演示项目
-         * - 对于5秒的刷新间隔，轮询足够用
-         * - 面试时可以讨论优化方案
-         */
-
         // =============================================================================
         // 全局变量
         // =============================================================================
 
-        // API基础地址
         const API_BASE = '/api';
-
-        // 刷新间隔（毫秒）
         const REFRESH_INTERVAL = 5000;
 
-        // Chart.js 图表实例
         let levelChart = null;
         let serviceChart = null;
-
-        // 当前日志数据
+        let trendChart = null;
         let allLogs = [];
 
         // =============================================================================
         // 初始化
         // =============================================================================
 
-        /**
-         * 【函数说明】页面加载完成后初始化
-         */
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化图表
             initCharts();
-
-            // 首次加载数据
+            loadServices();
             refreshData();
-
-            // 设置定时刷新
             setInterval(refreshData, REFRESH_INTERVAL);
         });
 
-        /**
-         * 【函数说明】初始化Chart.js图表
-         *
-         * 【设计决策】为什么在初始化时创建图表？
-         * - Chart.js需要先创建实例
-         * - 后续更新数据不需要重建
-         * - 更新数据比重建更高效
-         */
         function initCharts() {
-            // 日志级别分布 - 饼图
+            // 日志级别分布饼图
             const levelCtx = document.getElementById('levelChart').getContext('2d');
             levelChart = new Chart(levelCtx, {
                 type: 'doughnut',
@@ -402,15 +583,11 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
+                    plugins: { legend: { position: 'bottom' } }
                 }
             });
 
-            // 各服务错误统计 - 柱状图
+            // 服务错误统计柱状图
             const serviceCtx = document.getElementById('serviceChart').getContext('2d');
             serviceChart = new Chart(serviceCtx, {
                 type: 'bar',
@@ -425,41 +602,60 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
             });
+
+            // 趋势折线图
+            const trendCtx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'ERROR', data: [], borderColor: '#ff4757', tension: 0.3, fill: false },
+                        { label: 'WARN', data: [], borderColor: '#ffa502', tension: 0.3, fill: false },
+                        { label: 'INFO', data: [], borderColor: '#2ed573', tension: 0.3, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // =============================================================================
+        // 标签页切换
+        // =============================================================================
+
+        function switchTab(tabName) {
+            // 隐藏所有标签页
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-nav button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中的标签页
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // 加载数据
+            if (tabName === 'health') loadHealthData();
+            if (tabName === 'trend') loadTrendData();
         }
 
         // =============================================================================
         // 数据刷新
         // =============================================================================
 
-        /**
-         * 【函数说明】刷新所有数据
-         *
-         * 【处理流程】
-         * 1. 调用统计API
-         * 2. 调用日志列表API
-         * 3. 更新UI
-         */
         async function refreshData() {
             try {
-                // 并行请求统计数据和日志列表
-                // 【设计决策】为什么用Promise.all？
-                // - 并行请求比串行更快
-                // - 两个请求相互独立
                 const [statsResponse, logsResponse] = await Promise.all([
                     fetch(`${API_BASE}/stats?minutes=5`),
                     fetch(`${API_BASE}/logs?limit=100`)
@@ -468,101 +664,184 @@
                 const stats = await statsResponse.json();
                 const logs = await logsResponse.json();
 
-                // 更新UI
                 updateStats(stats);
                 updateCharts(stats);
                 updateLogs(logs);
                 updateStatus(stats);
-
             } catch (error) {
                 console.error('刷新数据失败:', error);
-                document.getElementById('lastUpdate').textContent = '连接失败，请检查服务器';
+                document.getElementById('lastUpdate').textContent = '连接失败';
                 document.getElementById('statusDot').classList.add('error');
             }
         }
 
-        /**
-         * 【函数说明】更新统计卡片
-         */
         function updateStats(stats) {
             document.getElementById('errorRate').textContent = stats.errorRate + '%';
+            document.getElementById('totalCount').textContent = stats.total;
             document.getElementById('errorCount').textContent = stats.errorCount;
             document.getElementById('warnCount').textContent = stats.warnCount;
             document.getElementById('infoCount').textContent = stats.infoCount;
         }
 
-        /**
-         * 【函数说明】更新图表数据
-         */
         function updateCharts(stats) {
-            // 更新饼图
-            levelChart.data.datasets[0].data = [
-                stats.errorCount,
-                stats.warnCount,
-                stats.infoCount
-            ];
+            levelChart.data.datasets[0].data = [stats.errorCount, stats.warnCount, stats.infoCount];
             levelChart.update();
 
-            // 更新柱状图
             const services = Object.keys(stats.byService || {});
             const errorCounts = Object.values(stats.byService || {});
-
             serviceChart.data.labels = services;
             serviceChart.data.datasets[0].data = errorCounts;
             serviceChart.update();
         }
 
-        /**
-         * 【函数说明】更新日志列表
-         */
         function updateLogs(logs) {
             allLogs = logs;
             filterLogs();
         }
 
-        /**
-         * 【函数说明】根据级别过滤日志
-         */
         function filterLogs() {
             const filter = document.getElementById('levelFilter').value;
             const container = document.getElementById('logsList');
+            const filteredLogs = filter ? allLogs.filter(log => log.level === filter) : allLogs;
 
-            // 过滤日志
-            const filteredLogs = filter
-                ? allLogs.filter(log => log.level === filter)
-                : allLogs;
-
-            // 生成HTML
-            // 【性能优化】使用innerHTML一次性更新，比逐个appendChild快
             container.innerHTML = filteredLogs.map(log => {
                 const time = log.timestamp.replace('T', ' ').substring(0, 19);
-                return `<div class="log-entry ${log.level}">
-                    [${time}] [${log.level}] [${log.service}] ${log.message}
-                </div>`;
+                return `<div class="log-entry ${log.level}">[${time}] [${log.level}] [${log.service}] ${log.message}</div>`;
             }).join('');
         }
 
-        /**
-         * 【函数说明】更新状态栏和告警横幅
-         */
         function updateStatus(stats) {
-            // 更新最后刷新时间
             const now = new Date().toLocaleTimeString();
             document.getElementById('lastUpdate').textContent = `最后更新: ${now}`;
 
-            // 更新状态指示灯
             const statusDot = document.getElementById('statusDot');
             const alertBanner = document.getElementById('alertBanner');
 
             if (stats.isAlerting) {
-                // 告警状态
                 statusDot.classList.add('error');
                 alertBanner.style.display = 'block';
-                alertBanner.textContent = `⚠️ 错误率告警！当前 ${stats.errorRate}% 超过阈值 ${stats.threshold}%`;
+                alertBanner.textContent = `警告：错误率 ${stats.errorRate}% 超过阈值 ${stats.threshold}%`;
             } else {
-                // 正常状态
                 statusDot.classList.remove('error');
                 alertBanner.style.display = 'none';
+            }
+        }
+
+        // =============================================================================
+        // 服务列表加载
+        // =============================================================================
+
+        async function loadServices() {
+            try {
+                const response = await fetch(`${API_BASE}/services`);
+                const services = await response.json();
+
+                const select = document.getElementById('searchService');
+                services.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service;
+                    option.textContent = service;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载服务列表失败:', error);
+            }
+        }
+
+        // =============================================================================
+        // 搜索功能
+        // =============================================================================
+
+        async function performSearch() {
+            const keyword = document.getElementById('searchKeyword').value;
+            const level = document.getElementById('searchLevel').value;
+            const service = document.getElementById('searchService').value;
+            const minutes = document.getElementById('searchMinutes').value;
+
+            const params = new URLSearchParams();
+            if (keyword) params.append('keyword', keyword);
+            if (level) params.append('level', level);
+            if (service) params.append('service', service);
+            params.append('minutes', minutes);
+
+            try {
+                const response = await fetch(`${API_BASE}/logs/search?${params}`);
+                const logs = await response.json();
+
+                document.getElementById('searchResultCount').textContent = `(${logs.length}条)`;
+
+                const container = document.getElementById('searchResults');
+                container.innerHTML = logs.map(log => {
+                    const time = log.timestamp.replace('T', ' ').substring(0, 19);
+                    return `<div class="log-entry ${log.level}">[${time}] [${log.level}] [${log.service}] ${log.message}</div>`;
+                }).join('');
+            } catch (error) {
+                console.error('搜索失败:', error);
+            }
+        }
+
+        // =============================================================================
+        // 导出功能
+        // =============================================================================
+
+        function exportCSV() {
+            const minutes = document.getElementById('searchMinutes').value;
+            window.open(`${API_BASE}/export/csv?minutes=${minutes}`, '_blank');
+        }
+
+        function exportJSON() {
+            const minutes = document.getElementById('searchMinutes').value;
+            window.open(`${API_BASE}/export/json?minutes=${minutes}`, '_blank');
+        }
+
+        // =============================================================================
+        // 健康度数据
+        // =============================================================================
+
+        async function loadHealthData() {
+            try {
+                const response = await fetch(`${API_BASE}/health/services?minutes=30`);
+                const data = await response.json();
+
+                const container = document.getElementById('healthGrid');
+                container.innerHTML = data.map(item => {
+                    const scoreClass = item.score >= 80 ? 'good' : (item.score >= 60 ? 'warning' : 'bad');
+                    const barColor = item.score >= 80 ? '#2ed573' : (item.score >= 60 ? '#ffa502' : '#ff4757');
+
+                    return `
+                        <div class="health-card">
+                            <div class="service-name">${item.service}</div>
+                            <div class="score ${scoreClass}">${item.score}</div>
+                            <div class="progress-bar">
+                                <div class="fill" style="width: ${item.score}%; background: ${barColor}"></div>
+                            </div>
+                            <div class="details">
+                                总计: ${item.total} | 错误: ${item.errorCount} | 警告: ${item.warnCount}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('加载健康度失败:', error);
+            }
+        }
+
+        // =============================================================================
+        // 趋势数据
+        // =============================================================================
+
+        async function loadTrendData() {
+            try {
+                const response = await fetch(`${API_BASE}/trend?hours=24`);
+                const data = await response.json();
+
+                trendChart.data.labels = data.labels;
+                trendChart.data.datasets[0].data = data.error;
+                trendChart.data.datasets[1].data = data.warn;
+                trendChart.data.datasets[2].data = data.info;
+                trendChart.update();
+            } catch (error) {
+                console.error('加载趋势失败:', error);
             }
         }
     </script>

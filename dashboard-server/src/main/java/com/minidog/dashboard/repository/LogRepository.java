@@ -206,4 +206,135 @@ public interface LogRepository extends JpaRepository<LogEntry, Long> {
      * - 保持查询性能
      */
     void deleteByTimestampBefore(LocalDateTime before);
+
+    // =============================================================================
+    // 新增功能：搜索、趋势、健康度
+    // =============================================================================
+
+    /**
+     * 【函数说明】关键词搜索日志
+     *
+     * 【输入】
+     * - keyword: 搜索关键词
+     * - start: 开始时间
+     * - end: 结束时间
+     *
+     * 【输出】List<LogEntry> - 包含关键词的日志列表
+     *
+     * 【设计决策】为什么用LIKE？
+     * - H2不支持全文索引（简化版）
+     * - 生产环境应该用Elasticsearch
+     *
+     * 【面试要点】
+     * 可以说"当前用LIKE实现，生产环境会换成ES的全文搜索"
+     */
+    @Query("SELECT l FROM LogEntry l " +
+           "WHERE l.message LIKE %:keyword% " +
+           "AND l.timestamp BETWEEN :start AND :end " +
+           "ORDER BY l.timestamp DESC")
+    List<LogEntry> searchByKeyword(
+            @Param("keyword") String keyword,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /**
+     * 【函数说明】多条件搜索日志
+     *
+     * 【输入】
+     * - keyword: 搜索关键词（可为空）
+     * - level: 日志级别（可为空）
+     * - service: 服务名（可为空）
+     * - start: 开始时间
+     * - end: 结束时间
+     *
+     * 【设计决策】为什么用原生SQL？
+     * - 需要动态条件
+     * - JPQL不支持CASE WHEN那么灵活
+     */
+    @Query("SELECT l FROM LogEntry l " +
+           "WHERE l.timestamp BETWEEN :start AND :end " +
+           "AND (:keyword IS NULL OR l.message LIKE %:keyword%) " +
+           "AND (:level IS NULL OR l.level = :level) " +
+           "AND (:service IS NULL OR l.service = :service) " +
+           "ORDER BY l.timestamp DESC")
+    List<LogEntry> searchLogs(
+            @Param("keyword") String keyword,
+            @Param("level") String level,
+            @Param("service") String service,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /**
+     * 【函数说明】获取所有服务名列表
+     *
+     * 【输出】List<String> - 去重的服务名列表
+     *
+     * 【使用场景】
+     * - 前端下拉框选项
+     * - 服务列表展示
+     */
+    @Query("SELECT DISTINCT l.service FROM LogEntry l ORDER BY l.service")
+    List<String> findAllServices();
+
+    /**
+     * 【函数说明】按时间段统计各级别日志数（用于趋势图）
+     *
+     * 【输入】
+     * - start: 开始时间
+     * - end: 结束时间
+     *
+     * 【输出】List<Object[]> - [timestamp, level, count]
+     *
+     * 【设计决策】按小时聚合
+     * - 粒度适中，不会太密也不会太稀疏
+     * - 方便绘制趋势图
+     */
+    @Query("SELECT FUNCTION('HOUR', l.timestamp) as hour, l.level, COUNT(l) " +
+           "FROM LogEntry l " +
+           "WHERE l.timestamp BETWEEN :start AND :end " +
+           "GROUP BY FUNCTION('HOUR', l.timestamp), l.level " +
+           "ORDER BY hour")
+    List<Object[]> countByHourAndLevel(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /**
+     * 【函数说明】统计每个服务的各级别日志数
+     *
+     * 【输入】
+     * - start: 开始时间
+     * - end: 结束时间
+     *
+     * 【输出】List<Object[]> - [service, level, count]
+     *
+     * 【使用场景】
+     * - 计算服务健康度评分
+     * - 服务对比分析
+     */
+    @Query("SELECT l.service, l.level, COUNT(l) " +
+           "FROM LogEntry l " +
+           "WHERE l.timestamp BETWEEN :start AND :end " +
+           "GROUP BY l.service, l.level")
+    List<Object[]> countByServiceAndLevel(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /**
+     * 【函数说明】获取指定时间范围内的日志（用于导出）
+     *
+     * 【设计决策】为什么单独一个方法？
+     * - 导出可能需要大量数据
+     * - 可以后续加分页、流式处理
+     */
+    @Query("SELECT l FROM LogEntry l " +
+           "WHERE l.timestamp BETWEEN :start AND :end " +
+           "ORDER BY l.timestamp ASC")
+    List<LogEntry> findAllForExport(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }
