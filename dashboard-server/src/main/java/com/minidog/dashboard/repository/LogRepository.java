@@ -337,4 +337,52 @@ public interface LogRepository extends JpaRepository<LogEntry, Long> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    // =============================================================================
+    // 高级功能：日志聚合、Top错误
+    // =============================================================================
+
+    /**
+     * 【函数说明】按消息模板聚合日志（统计相同错误出现次数）
+     *
+     * 【输入】
+     * - level: 日志级别
+     * - start: 开始时间
+     * - end: 结束时间
+     *
+     * 【输出】List<Object[]> - [message, count]
+     *
+     * 【使用场景】
+     * - 查看最常见的错误
+     * - 发现重复问题
+     *
+     * 【面试要点】
+     * 可以讨论如何用正则提取错误模板，去除动态参数
+     */
+    @Query("SELECT l.message, COUNT(l) as cnt FROM LogEntry l " +
+           "WHERE l.level = :level AND l.timestamp BETWEEN :start AND :end " +
+           "GROUP BY l.message " +
+           "ORDER BY cnt DESC")
+    List<Object[]> aggregateByMessage(
+            @Param("level") String level,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /**
+     * 【函数说明】获取数据库中的日志总数
+     */
+    long count();
+
+    /**
+     * 【函数说明】获取最早的日志时间
+     */
+    @Query("SELECT MIN(l.timestamp) FROM LogEntry l")
+    LocalDateTime findEarliestTimestamp();
+
+    /**
+     * 【函数说明】获取最新的日志时间
+     */
+    @Query("SELECT MAX(l.timestamp) FROM LogEntry l")
+    LocalDateTime findLatestTimestamp();
 }

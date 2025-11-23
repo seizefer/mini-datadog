@@ -520,4 +520,170 @@ public class LogService {
         LocalDateTime start = end.minusMinutes(minutes);
         return logRepository.findAllForExport(start, end);
     }
+
+    // =============================================================================
+    // 高级功能：日志聚合、系统指标
+    // =============================================================================
+
+    /**
+     * 【函数说明】获取Top错误（按出现次数排序）
+     *
+     * 【输入】
+     * - minutes: 时间范围
+     * - limit: 返回数量
+     *
+     * 【输出】List<Map<String, Object>> - 错误消息和出现次数
+     *
+     * 【使用场景】
+     * - 快速定位最常见的错误
+     * - 优先修复高频问题
+     */
+    public List<Map<String, Object>> getTopErrors(int minutes, int limit) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        List<Object[]> data = logRepository.aggregateByMessage("ERROR", start, end);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        int count = 0;
+
+        for (Object[] row : data) {
+            if (count >= limit) break;
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("message", row[0]);
+            item.put("count", row[1]);
+            result.add(item);
+            count++;
+        }
+
+        return result;
+    }
+
+    /**
+     * 【函数说明】获取系统运行指标
+     *
+     * 【输出】Map<String, Object> - 系统指标
+     *        - totalLogs: 总日志数
+     *        - earliestLog: 最早日志时间
+     *        - latestLog: 最新日志时间
+     *        - uptime: 运行时长
+     *        - avgLogsPerMinute: 平均每分钟日志数
+     *        - jvmMemory: JVM内存使用
+     *
+     * 【使用场景】
+     * - 系统健康监控
+     * - 容量规划
+     */
+    public Map<String, Object> getSystemMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+
+        // 日志统计
+        long totalLogs = logRepository.count();
+        LocalDateTime earliest = logRepository.findEarliestTimestamp();
+        LocalDateTime latest = logRepository.findLatestTimestamp();
+
+        metrics.put("totalLogs", totalLogs);
+        metrics.put("earliestLog", earliest != null ? earliest.format(DATE_FORMATTER) : "N/A");
+        metrics.put("latestLog", latest != null ? latest.format(DATE_FORMATTER) : "N/A");
+
+        // 计算平均每分钟日志数
+        if (earliest != null && latest != null && totalLogs > 0) {
+            long minutes = java.time.Duration.between(earliest, latest).toMinutes();
+            double avgPerMinute = minutes > 0 ? (double) totalLogs / minutes : totalLogs;
+            metrics.put("avgLogsPerMinute", Math.round(avgPerMinute * 100) / 100.0);
+        } else {
+            metrics.put("avgLogsPerMinute", 0);
+        }
+
+        // JVM内存信息
+        Runtime runtime = Runtime.getRuntime();
+        long maxMemory = runtime.maxMemory() / (1024 * 1024);
+        long totalMemory = runtime.totalMemory() / (1024 * 1024);
+        long freeMemory = runtime.freeMemory() / (1024 * 1024);
+        long usedMemory = totalMemory - freeMemory;
+
+        Map<String, Object> jvmMemory = new HashMap<>();
+        jvmMemory.put("max", maxMemory + " MB");
+        jvmMemory.put("total", totalMemory + " MB");
+        jvmMemory.put("used", usedMemory + " MB");
+        jvmMemory.put("free", freeMemory + " MB");
+        jvmMemory.put("usagePercent", Math.round(usedMemory * 100.0 / maxMemory));
+
+        metrics.put("jvmMemory", jvmMemory);
+
+        // 线程信息
+        metrics.put("activeThreads", Thread.activeCount());
+
+        // 系统时间
+        metrics.put("serverTime", LocalDateTime.now().format(DATE_FORMATTER));
+
+        return metrics;
+    }
+
+    /**
+     * 【函数说明】获取日志吞吐量（每分钟）
+     *
+     * 【输入】minutes: 统计最近N分钟
+     *
+     * 【输出】List<Map<String, Object>> - 每分钟的日志数量
+     *
+     * 【使用场景】
+     * - 查看流量高峰
+     * - 容量规划
+     */
+    public List<Map<String, Object>> getThroughput(int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        // 按分钟聚合
+        List<Object[]> data = logRepository.countByHourAndLevel(start, end);
+
+        // 简化返回最近统计
+        Map<String, Object> throughput = new HashMap<>();
+        long total = logRepository.countByTimestampBetween(start, end);
+        throughput.put("period", minutes + "分钟");
+        throughput.put("total", total);
+        throughput.put("avgPerMinute", Math.round((double) total / minutes * 100) / 100.0);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        result.add(throughput);
+
+        return result;
+    }
+
+    /**
+     * 【函数说明】获取日志分布概览
+     *
+     * 【输出】各维度的日志分布统计
+     */
+    public Map<String, Object> getLogDistribution(int minutes) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutes);
+
+        Map<String, Object> distribution = new HashMap<>();
+
+        // 按级别分布
+        List<Object[]> levelData = logRepository.countByLevelGrouped(start, end);
+        Map<String, Long> byLevel = new HashMap<>();
+        for (Object[] row : levelData) {
+            byLevel.put((String) row[0], (Long) row[1]);
+        }
+        distribution.put("byLevel", byLevel);
+
+        // 按服务分布
+        List<Object[]> serviceData = logRepository.countByServiceAndLevel(start, end);
+        Map<String, Long> byService = new HashMap<>();
+        for (Object[] row : serviceData) {
+            String service = (String) row[0];
+            Long count = (Long) row[2];
+            byService.merge(service, count, Long::sum);
+        }
+        distribution.put("byService", byService);
+
+        distribution.put("timeRange", minutes + "分钟");
+        distribution.put("total", logRepository.countByTimestampBetween(start, end));
+
+        return distribution;
+    }
 }

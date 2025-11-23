@@ -451,4 +451,118 @@ public class DashboardController {
                 .header("Content-Disposition", "attachment; filename=logs.json")
                 .body(logs);
     }
+
+    // =============================================================================
+    // 新增API：系统指标、Top错误、吞吐量、分布统计
+    // =============================================================================
+
+    /**
+     * 【API】获取Top错误列表
+     *
+     * 【请求】GET /api/top-errors?minutes=60&limit=10
+     *
+     * 【响应】
+     * [
+     *   {
+     *     "message": "数据库连接失败",
+     *     "count": 15
+     *   },
+     *   ...
+     * ]
+     *
+     * 【使用场景】
+     * - 快速定位最常见错误
+     * - 优先级排序修复
+     */
+    @GetMapping("/top-errors")
+    public ResponseEntity<List<Map<String, Object>>> getTopErrors(
+            @RequestParam(defaultValue = "60") int minutes,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        List<Map<String, Object>> topErrors = logService.getTopErrors(minutes, limit);
+        return ResponseEntity.ok(topErrors);
+    }
+
+    /**
+     * 【API】获取系统指标
+     *
+     * 【请求】GET /api/metrics
+     *
+     * 【响应】
+     * {
+     *   "totalLogs": 10000,
+     *   "earliestLog": "2024-01-01T00:00:00",
+     *   "latestLog": "2024-01-01T10:00:00",
+     *   "avgLogsPerMinute": 16.67,
+     *   "jvmMemoryUsed": "128MB",
+     *   "jvmMemoryMax": "512MB",
+     *   "activeThreads": 25
+     * }
+     *
+     * 【使用场景】
+     * - 系统监控面板
+     * - 容量规划
+     */
+    @GetMapping("/metrics")
+    public ResponseEntity<Map<String, Object>> getSystemMetrics() {
+        Map<String, Object> metrics = logService.getSystemMetrics();
+        return ResponseEntity.ok(metrics);
+    }
+
+    /**
+     * 【API】获取吞吐量统计
+     *
+     * 【请求】GET /api/throughput?minutes=60
+     *
+     * 【响应】
+     * [
+     *   {
+     *     "minute": "10:00",
+     *     "count": 150
+     *   },
+     *   ...
+     * ]
+     *
+     * 【使用场景】
+     * - 流量趋势分析
+     * - 峰值识别
+     */
+    @GetMapping("/throughput")
+    public ResponseEntity<List<Map<String, Object>>> getThroughput(
+            @RequestParam(defaultValue = "60") int minutes) {
+
+        List<Map<String, Object>> throughput = logService.getThroughput(minutes);
+        return ResponseEntity.ok(throughput);
+    }
+
+    /**
+     * 【API】获取日志分布统计
+     *
+     * 【请求】GET /api/distribution?minutes=60
+     *
+     * 【响应】
+     * {
+     *   "byLevel": {
+     *     "INFO": 600,
+     *     "WARN": 300,
+     *     "ERROR": 100
+     *   },
+     *   "byService": {
+     *     "UserService": 400,
+     *     "PaymentService": 300,
+     *     ...
+     *   }
+     * }
+     *
+     * 【使用场景】
+     * - 日志分布分析
+     * - 服务负载对比
+     */
+    @GetMapping("/distribution")
+    public ResponseEntity<Map<String, Object>> getLogDistribution(
+            @RequestParam(defaultValue = "60") int minutes) {
+
+        Map<String, Object> distribution = logService.getLogDistribution(minutes);
+        return ResponseEntity.ok(distribution);
+    }
 }

@@ -417,6 +417,7 @@
         <button onclick="switchTab('search')">日志搜索</button>
         <button onclick="switchTab('health')">服务健康</button>
         <button onclick="switchTab('trend')">历史趋势</button>
+        <button onclick="switchTab('metrics')">系统指标</button>
     </nav>
 
     <!-- 概览标签页 -->
@@ -537,6 +538,61 @@
         </div>
     </div>
 
+    <!-- 系统指标标签页 -->
+    <div id="tab-metrics" class="tab-content">
+        <div class="container">
+            <!-- 系统指标卡片 -->
+            <div class="stats-grid" id="systemMetrics">
+                <div class="stat-card total">
+                    <div class="label">总日志数</div>
+                    <div class="value" id="metricTotal">-</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="label">平均日志/分钟</div>
+                    <div class="value" id="metricAvg">-</div>
+                </div>
+                <div class="stat-card warn">
+                    <div class="label">JVM内存使用</div>
+                    <div class="value" id="metricMemory">-</div>
+                </div>
+                <div class="stat-card rate">
+                    <div class="label">活跃线程</div>
+                    <div class="value" id="metricThreads">-</div>
+                </div>
+            </div>
+
+            <!-- Top错误列表 -->
+            <div class="logs-section">
+                <div class="logs-header">
+                    <h3>Top 错误 (最近1小时)</h3>
+                </div>
+                <div id="topErrorsList" style="max-height: 300px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">错误消息</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ddd; width: 80px;">次数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topErrorsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 日志分布统计 -->
+            <div class="charts-grid" style="margin-top: 20px;">
+                <div class="chart-card">
+                    <h3>按级别分布</h3>
+                    <div id="levelDistribution" style="padding: 10px;"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>按服务分布</h3>
+                    <div id="serviceDistribution" style="padding: 10px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 底部状态栏 -->
     <footer class="footer">
         <span class="status-dot" id="statusDot"></span>
@@ -648,6 +704,7 @@
             // 加载数据
             if (tabName === 'health') loadHealthData();
             if (tabName === 'trend') loadTrendData();
+            if (tabName === 'metrics') loadMetricsData();
         }
 
         // =============================================================================
@@ -842,6 +899,69 @@
                 trendChart.update();
             } catch (error) {
                 console.error('加载趋势失败:', error);
+            }
+        }
+
+        // =============================================================================
+        // 系统指标数据
+        // =============================================================================
+
+        async function loadMetricsData() {
+            try {
+                // 并行加载系统指标、Top错误、分布数据
+                const [metricsRes, errorsRes, distRes] = await Promise.all([
+                    fetch(`${API_BASE}/metrics`),
+                    fetch(`${API_BASE}/top-errors?minutes=60&limit=10`),
+                    fetch(`${API_BASE}/distribution?minutes=60`)
+                ]);
+
+                const metrics = await metricsRes.json();
+                const topErrors = await errorsRes.json();
+                const distribution = await distRes.json();
+
+                // 更新系统指标
+                document.getElementById('metricTotal').textContent = metrics.totalLogs || 0;
+                document.getElementById('metricAvg').textContent =
+                    (metrics.avgLogsPerMinute || 0).toFixed(1);
+                document.getElementById('metricMemory').textContent = metrics.jvmMemoryUsed || '-';
+                document.getElementById('metricThreads').textContent = metrics.activeThreads || 0;
+
+                // 更新Top错误列表
+                const tbody = document.getElementById('topErrorsBody');
+                if (topErrors.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" style="padding: 20px; text-align: center; color: #666;">暂无错误记录</td></tr>';
+                } else {
+                    tbody.innerHTML = topErrors.map(err => `
+                        <tr>
+                            <td style="padding: 8px 10px; border-bottom: 1px solid #f0f0f0; font-size: 12px;">${err.message}</td>
+                            <td style="padding: 8px 10px; border-bottom: 1px solid #f0f0f0; text-align: right; font-weight: bold; color: #ff4757;">${err.count}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // 更新级别分布
+                const levelDiv = document.getElementById('levelDistribution');
+                const byLevel = distribution.byLevel || {};
+                levelDiv.innerHTML = Object.entries(byLevel).map(([level, count]) => {
+                    const color = level === 'ERROR' ? '#ff4757' : (level === 'WARN' ? '#ffa502' : '#2ed573');
+                    return `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span style="color: ${color}; font-weight: bold;">${level}</span>
+                        <span>${count}</span>
+                    </div>`;
+                }).join('') || '<div style="color: #666; text-align: center;">暂无数据</div>';
+
+                // 更新服务分布
+                const serviceDiv = document.getElementById('serviceDistribution');
+                const byService = distribution.byService || {};
+                serviceDiv.innerHTML = Object.entries(byService).map(([service, count]) => `
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span>${service}</span>
+                        <span style="font-weight: bold;">${count}</span>
+                    </div>
+                `).join('') || '<div style="color: #666; text-align: center;">暂无数据</div>';
+
+            } catch (error) {
+                console.error('加载系统指标失败:', error);
             }
         }
     </script>
